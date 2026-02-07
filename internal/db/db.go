@@ -1,30 +1,30 @@
 package db
 
 import (
-	"database/sql"
+	"context"
 	"fmt"
 
-	_ "github.com/lib/pq"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/gnailuy/amiglot-api/internal/config"
 )
 
-// New opens a database connection if DATABASE_URL is set.
+// New opens a database connection pool if DATABASE_URL is set.
 // Returns (nil, nil) when no URL is provided.
-func New(cfg config.Config) (*sql.DB, error) {
+func New(cfg config.Config) (*pgxpool.Pool, error) {
 	if cfg.DatabaseURL == "" {
 		return nil, nil
 	}
 
-	conn, err := sql.Open("postgres", cfg.DatabaseURL)
+	pool, err := pgxpool.New(context.Background(), cfg.DatabaseURL)
 	if err != nil {
 		return nil, fmt.Errorf("open db: %w", err)
 	}
 
-	if err := conn.Ping(); err != nil {
-		_ = conn.Close()
+	if err := pool.Ping(context.Background()); err != nil {
+		pool.Close()
 		return nil, fmt.Errorf("ping db: %w", err)
 	}
 
-	return conn, nil
+	return pool, nil
 }

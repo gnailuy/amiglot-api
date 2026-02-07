@@ -6,18 +6,18 @@ import (
 
 	"github.com/gnailuy/amiglot-api/internal/config"
 	"github.com/gnailuy/amiglot-api/internal/db"
-	httpx "github.com/gnailuy/amiglot-api/internal/http"
+	"github.com/gnailuy/amiglot-api/internal/http"
 )
 
 func main() {
 	cfg := config.Load()
 
-	conn, err := db.New(cfg)
+	pool, err := db.New(cfg)
 	if err != nil {
 		log.Fatalf("database init failed: %v", err)
 	}
-	if conn != nil {
-		defer conn.Close()
+	if pool != nil {
+		defer pool.Close()
 		log.Printf("database connected")
 	} else {
 		log.Printf("DATABASE_URL not set; starting without database")
@@ -25,7 +25,7 @@ func main() {
 
 	addr := ":" + cfg.Port
 	log.Printf("listening on %s", addr)
-	if err := http.ListenAndServe(addr, httpx.Router()); err != nil {
+	if err := http.ListenAndServe(addr, http.Router()); err != nil {
 		log.Fatalf("server failed: %v", err)
 	}
 }
