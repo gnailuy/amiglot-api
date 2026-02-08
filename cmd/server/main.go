@@ -6,7 +6,7 @@ import (
 
 	"github.com/gnailuy/amiglot-api/internal/config"
 	"github.com/gnailuy/amiglot-api/internal/db"
-	"github.com/gnailuy/amiglot-api/internal/http"
+	httpserver "github.com/gnailuy/amiglot-api/internal/http"
 )
 
 func main() {
@@ -25,7 +25,7 @@ func main() {
 
 	addr := ":" + cfg.Port
 	log.Printf("listening on %s", addr)
-	if err := http.ListenAndServe(addr, http.Router()); err != nil {
+	if err := http.ListenAndServe(addr, httpserver.Router()); err != nil {
 		log.Fatalf("server failed: %v", err)
 	}
 }
