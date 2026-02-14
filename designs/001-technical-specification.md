@@ -116,7 +116,6 @@ CREATE TABLE match_requests (
   requester_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   recipient_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   status TEXT NOT NULL CHECK (status IN ('pending','accepted','declined','canceled')),
-  intro_message TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   responded_at TIMESTAMPTZ
 );
@@ -145,20 +144,24 @@ CREATE UNIQUE INDEX matches_unique_pair
 ```
 
 **messages**
+Single table for both pre‑accept and match messages. Pre‑accept messages reference `match_request_id`. On accept, the server creates a match and re-associates those rows by setting `match_id` and clearing `match_request_id` (no copy).
 
 ```sql
 CREATE TABLE messages (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  match_id UUID NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
+  match_id UUID REFERENCES matches(id) ON DELETE CASCADE,
+  match_request_id UUID REFERENCES match_requests(id) ON DELETE CASCADE,
   sender_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   body TEXT NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CHECK ((match_id IS NOT NULL) <> (match_request_id IS NOT NULL))
 );
 
 CREATE INDEX messages_match_idx ON messages(match_id, created_at);
+CREATE INDEX messages_match_request_idx ON messages(match_request_id, created_at);
 ```
 
-> Application ensures `sender_id` belongs to the match.
+> Application ensures `sender_id` belongs to the match (or the match request for pre‑accept messages).
 
 ### 2.4 Safety & Admin (Minimal V1)
 
@@ -239,8 +242,23 @@ WHERE p.discoverable = true
 
 **Create match request**
 ```sql
-INSERT INTO match_requests (requester_id, recipient_id, status, intro_message)
-VALUES (:requester_id, :recipient_id, 'pending', :intro_message);
+WITH req AS (
+  INSERT INTO match_requests (requester_id, recipient_id, status)
+  VALUES (:requester_id, :recipient_id, 'pending')
+  RETURNING id
+)
+-- optional initial message
+INSERT INTO match_request_messages (match_request_id, sender_id, body)
+SELECT id, :requester_id, :initial_message
+FROM req
+WHERE :initial_message IS NOT NULL;
+```
+
+**Send pre-accept message**
+```sql
+-- enforce per-user limit in app before insert
+INSERT INTO match_request_messages (match_request_id, sender_id, body)
+VALUES (:request_id, :sender_id, :body);
 ```
 
 **Accept match request**
@@ -251,7 +269,15 @@ WHERE id = :request_id AND recipient_id = :user_id;
 
 INSERT INTO matches (user_a, user_b)
 VALUES (:requester_id, :recipient_id)
-ON CONFLICT DO NOTHING;
+ON CONFLICT DO NOTHING
+RETURNING id;
+
+-- copy pre-accept messages into match conversation (preserve order)
+INSERT INTO messages (match_id, sender_id, body, created_at)
+SELECT :match_id, sender_id, body, created_at
+FROM match_request_messages
+WHERE match_request_id = :request_id
+ORDER BY created_at ASC;
 ```
 
 **Send message**
@@ -264,3 +290,30 @@ VALUES (:match_id, :sender_id, :body);
 - Existing `users` table already present in `amiglot-api` migrations; add new tables via sequential migrations.
 - When user changes handle, update `profiles.handle` and `profiles.handle_norm`.
 - Availability slots are stored in local time + timezone; matching converts to UTC at query time, so DST shifts are handled without rewriting rows.
+
+## 3. API Contract Implementation Notes
+> Shared UI ↔ API contract lives in `amiglot-ui/designs/003-technical-specification.md`.
+
+### 3.1 Authentication & Authorization
+- Magic link auth issues access tokens; all non-public endpoints require auth.
+- Authorization checks: resource ownership for profile/languages/availability; match membership for messaging.
+- Email is only returned via `/me` and never exposed elsewhere.
+
+### 3.2 Validation & Business Rules
+- Handle uniqueness (case-insensitive); store normalized value in `profiles.handle_norm`.
+- Require at least one native language on profile creation.
+- Enforce `start_local_time < end_local_time` (wrap-around slots split into two rows).
+- `match_requests`: enforce one pending request between user pairs.
+
+### 3.3 Rate Limits & Abuse Controls (V1)
+- `/auth/magic-link`: per-IP + per-email
+- `/search`: per-user and per-IP
+- `/matches/{id}/messages`: per-user/day (per product spec)
+- Anti-spam: enforce pre-accept message limit + daily cap (configurable)
+
+### 3.4 Monitoring & Metrics
+- Health endpoints: `/healthz` (basic) + `/readyz` (db connectivity)
+- Metrics: Prometheus `/metrics` (req count, latency, errors, auth failures, rate-limit hits, DB latency, mail sends, message sends)
+- Structured logging: JSON with request_id, user_id (when available), route, status, latency
+- Tracing: OpenTelemetry spans (HTTP + DB)
+- Dashboards: p50/p95 latency by route; error rate; auth failures; DAU/signups/searches/match requests/accepts/messages; safety (block/report counts, rate-limit hits)
