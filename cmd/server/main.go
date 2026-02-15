@@ -25,7 +25,7 @@ func main() {
 
 	addr := ":" + cfg.Port
 	log.Printf("listening on %s", addr)
-	if err := http.ListenAndServe(addr, httpserver.Router()); err != nil {
+	if err := http.ListenAndServe(addr, httpserver.Router(cfg, pool)); err != nil {
 		log.Fatalf("server failed: %v", err)
 	}
 }
