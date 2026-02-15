@@ -7,7 +7,6 @@ import (
 	"encoding/base64"
 	"errors"
 	"log"
-	"net/http"
 	"strings"
 	"time"
 
