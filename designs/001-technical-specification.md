@@ -190,52 +190,9 @@ CREATE TABLE user_reports (
 ### 1.4 Query Examples (Use Cases)
 Pseudo-SQL showing the logic; actual implementation can be optimized with CTEs and indexes.
 
-**Search candidates (filters + mutual match rules)**
-```sql
--- Inputs: :user_id, :target_language, :min_level, :age_range, :country_code
-WITH me AS (
-  SELECT id FROM users WHERE id = :user_id
-),
-my_teach AS (
-  SELECT language_code
-  FROM user_languages
-  WHERE user_id = :user_id AND level >= 4
-),
-my_targets AS (
-  SELECT language_code
-  FROM user_languages
-  WHERE user_id = :user_id AND is_target = true
-),
-my_bridge AS (
-  SELECT language_code
-  FROM user_languages
-  WHERE user_id = :user_id AND level >= 3
-)
-SELECT u.id
-FROM users u
-JOIN profiles p ON p.user_id = u.id
-WHERE p.discoverable = true
-  AND (:country_code IS NULL OR p.country_code = :country_code)
-  AND u.id <> :user_id
-  AND EXISTS (
-    SELECT 1 FROM user_languages ul
-    WHERE ul.user_id = u.id
-      AND ul.language_code IN (SELECT language_code FROM my_targets)
-      AND ul.level >= 4
-  )
-  AND EXISTS (
-    SELECT 1 FROM user_languages ul
-    WHERE ul.user_id = u.id
-      AND ul.language_code IN (SELECT language_code FROM my_teach)
-      AND ul.level >= 4
-  )
-  AND EXISTS (
-    SELECT 1 FROM user_languages ul
-    WHERE ul.user_id = u.id
-      AND ul.language_code IN (SELECT language_code FROM my_bridge)
-      AND ul.level >= 3
-  );
-```
+**Discovery / Matching (search candidates)**
+
+> See `004-discovery-matching-design.md` for the full single-pass CTE query, index strategy, and performance considerations. That document is the source of truth for the matching SQL.
 
 **Create match request**
 ```sql
@@ -307,7 +264,7 @@ VALUES (:match_id, :sender_id, :body);
 
 ### 2.3 Rate Limits & Abuse Controls (V1)
 - `/auth/magic-link`: per-IP + per-email
-- `/search`: per-user and per-IP
+- `/matches/discover`: per-user and per-IP
 - `/matches/{id}/messages`: per-user/day (per product spec)
 - Anti-spam: enforce pre-accept message limit + daily cap (configurable)
 
@@ -316,4 +273,4 @@ VALUES (:match_id, :sender_id, :body);
 - Metrics: Prometheus `/metrics` (req count, latency, errors, auth failures, rate-limit hits, DB latency, mail sends, message sends)
 - Structured logging: JSON with request_id, user_id (when available), route, status, latency
 - Tracing: OpenTelemetry spans (HTTP + DB)
-- Dashboards: p50/p95 latency by route; error rate; auth failures; DAU/signups/searches/match requests/accepts/messages; safety (block/report counts, rate-limit hits)
+- Dashboards: p50/p95 latency by route; error rate; auth failures; DAU/signups/discovery queries/match requests/accepts/messages; safety (block/report counts, rate-limit hits)
