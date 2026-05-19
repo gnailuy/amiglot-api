@@ -20,17 +20,17 @@ func NewMessagingRepository(pool *pgxpool.Pool) *MessagingRepository {
 
 // ConversationRow represents a match (conversation) with partner info and last message.
 type ConversationRow struct {
-	ID              string
-	PartnerID       string
-	PartnerHandle   string
-	PartnerCountry  *string
+	ID                string
+	PartnerID         string
+	PartnerHandle     string
+	PartnerCountry    *string
 	PartnerBirthYear  *int
 	PartnerBirthMonth *int16
-	CreatedAt       time.Time
-	ClosedAt        *time.Time
-	LastMessageBody *string
-	LastMessageAt   *time.Time
-	LastSenderID    *string
+	CreatedAt         time.Time
+	ClosedAt          *time.Time
+	LastMessageBody   *string
+	LastMessageAt     *time.Time
+	LastSenderID      *string
 }
 
 // ConvMessageRow represents a message in a match conversation.

@@ -16,9 +16,9 @@ const (
 
 // MessagingService handles post-accept messaging business logic.
 type MessagingService struct {
-	repo         *repository.MessagingRepository
-	msgMaxLen    int
-	dailyLimit   int
+	repo       *repository.MessagingRepository
+	msgMaxLen  int
+	dailyLimit int
 }
 
 // NewMessagingService creates a new MessagingService.
