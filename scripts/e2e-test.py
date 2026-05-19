@@ -667,6 +667,133 @@ def test_connection(api: str, r: Results):
         r.fail("C21", f"{resp21.status_code}")
 
 
+def test_messaging(api: str, r: Results):
+    """In-App Messaging E2E Tests (M1-M12)."""
+    print("\n── Messaging ──")
+
+    # Setup: two users with an accepted match
+    user_a = setup_fresh_user(api)
+    user_b = setup_fresh_user(api)
+    # user_b needs complementary languages for matching
+    requests.put(f"{api}/profile/languages", json={"languages": [
+        {"language_code": "zh", "level": 5, "is_native": True, "is_target": False},
+        {"language_code": "en", "level": 2, "is_native": False, "is_target": True},
+    ]}, headers=auth(user_b))
+
+    # Create and accept a match request
+    resp = requests.post(f"{api}/match-requests",
+                         json={"recipient_id": user_b, "initial_message": "Hey!"},
+                         headers=auth(user_a))
+    req_id = resp.json()["id"]
+    accept_resp = requests.post(f"{api}/match-requests/{req_id}/accept", json={}, headers=auth(user_b))
+    match_id = accept_resp.json()["match_id"]
+
+    # M1: List conversations — user_a sees the new match
+    resp = requests.get(f"{api}/matches", headers=auth(user_a))
+    if resp.ok and len(resp.json().get("items", [])) >= 1:
+        r.ok("M1: list conversations shows accepted match")
+    else:
+        r.fail("M1", f"{resp.status_code}: {resp.text[:100]}")
+
+    # M2: List conversations — includes pre-accept message as last_message
+    items = resp.json().get("items", [])
+    conv = next((c for c in items if c["id"] == match_id), None)
+    if conv and conv.get("last_message_body") == "Hey!":
+        r.ok("M2: pre-accept message visible as last message")
+    else:
+        r.fail("M2", f"conv={conv}")
+
+    # M3: Send a message
+    resp = requests.post(f"{api}/matches/{match_id}/messages",
+                         json={"body": "Hello from A!"},
+                         headers=auth(user_a))
+    if resp.ok and resp.json().get("body") == "Hello from A!":
+        r.ok("M3: send message")
+    else:
+        r.fail("M3", f"{resp.status_code}: {resp.text[:100]}")
+
+    # M4: List messages (initial load, DESC order)
+    resp = requests.get(f"{api}/matches/{match_id}/messages?limit=50", headers=auth(user_a))
+    if resp.ok and len(resp.json().get("items", [])) >= 2:  # pre-accept + new
+        r.ok("M4: list messages (includes pre-accept + new)")
+    else:
+        r.fail("M4", f"{resp.status_code}: items={len(resp.json().get('items', []))}")
+
+    # M5: Poll with since parameter
+    msgs = resp.json()["items"]
+    latest_ts = msgs[0]["created_at"]  # Most recent in DESC
+    # Send another message then poll
+    requests.post(f"{api}/matches/{match_id}/messages",
+                  json={"body": "Second message"},
+                  headers=auth(user_b))
+    resp = requests.get(f"{api}/matches/{match_id}/messages?since={latest_ts}&limit=50",
+                        headers=auth(user_a))
+    if resp.ok and len(resp.json().get("items", [])) >= 1:
+        r.ok("M5: polling with since returns new messages")
+    else:
+        r.fail("M5", f"{resp.status_code}: {resp.text[:100]}")
+
+    # M6: Non-participant cannot access messages
+    user_c = setup_fresh_user(api)
+    resp = requests.get(f"{api}/matches/{match_id}/messages", headers=auth(user_c))
+    if resp.status_code == 404:
+        r.ok("M6: non-participant gets 404")
+    else:
+        r.fail("M6", f"expected 404, got {resp.status_code}")
+
+    # M7: Non-participant cannot send
+    resp = requests.post(f"{api}/matches/{match_id}/messages",
+                         json={"body": "sneaky"},
+                         headers=auth(user_c))
+    if resp.status_code == 404:
+        r.ok("M7: non-participant cannot send (404)")
+    else:
+        r.fail("M7", f"expected 404, got {resp.status_code}")
+
+    # M8: Message too long
+    long_body = "x" * 2001
+    resp = requests.post(f"{api}/matches/{match_id}/messages",
+                         json={"body": long_body},
+                         headers=auth(user_a))
+    if resp.status_code == 400:
+        r.ok("M8: message too long (400)")
+    else:
+        r.fail("M8", f"expected 400, got {resp.status_code}")
+
+    # M9: Empty message
+    resp = requests.post(f"{api}/matches/{match_id}/messages",
+                         json={"body": ""},
+                         headers=auth(user_a))
+    if resp.status_code == 400:
+        r.ok("M9: empty message (400)")
+    else:
+        r.fail("M9", f"expected 400, got {resp.status_code}")
+
+    # M10: Close match
+    resp = requests.post(f"{api}/matches/{match_id}/close", json={}, headers=auth(user_a))
+    if resp.ok and resp.json().get("ok"):
+        r.ok("M10: close match")
+    else:
+        r.fail("M10", f"{resp.status_code}: {resp.text[:100]}")
+
+    # M11: Cannot send after close
+    resp = requests.post(f"{api}/matches/{match_id}/messages",
+                         json={"body": "after close"},
+                         headers=auth(user_a))
+    if resp.status_code == 403:
+        r.ok("M11: cannot send after close (403)")
+    else:
+        r.fail("M11", f"expected 403, got {resp.status_code}")
+
+    # M12: Closed match not in conversations list
+    resp = requests.get(f"{api}/matches", headers=auth(user_a))
+    ids = [c["id"] for c in resp.json().get("items", [])]
+    if match_id not in ids:
+        r.ok("M12: closed match hidden from conversations list")
+    else:
+        r.fail("M12", "closed match still visible")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Amiglot API E2E Tests")
     parser.add_argument("--api-url", default=API_URL)
@@ -689,6 +816,7 @@ def main():
     test_discoverable(api, r)
     test_discovery(api, r)
     test_connection(api, r)
+    test_messaging(api, r)
     print(r.summary())
     sys.exit(r.exit_code)
 
