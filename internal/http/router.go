@@ -59,6 +59,7 @@ func Router(cfg config.Config, pool *pgxpool.Pool) http.Handler {
 	registerProfileRoutes(api, pool)
 	registerDiscoveryRoutes(api, cfg, pool)
 	registerConnectionRoutes(api, cfg, pool)
+	registerMessagingRoutes(api, cfg, pool)
 
 	root.Handle("/api/v1/", http.StripPrefix("/api/v1", apiMux))
 

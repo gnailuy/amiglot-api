@@ -66,5 +66,8 @@
   "errors.message_limit": "You have reached the message limit for this request.",
   "errors.message_required": "Message body is required.",
   "errors.message_too_long": "Message is too long.",
-  "errors.request_not_found": "Connection request not found."
+  "errors.request_not_found": "Connection request not found.",
+  "errors.match_not_found": "Match not found",
+  "errors.match_closed": "This conversation has been closed",
+  "errors.daily_message_limit": "Daily message limit reached for this conversation"
 }

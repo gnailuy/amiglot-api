@@ -16,6 +16,8 @@ type Config struct {
 	MatchMinOverlapMinutes    int
 	PreMatchMessageLimit      int
 	MatchRequestMessageMaxLen int
+	MatchMessageMaxLen        int
+	MatchDailyMsgLimit        int
 }
 
 // Load reads configuration from environment variables.
@@ -65,6 +67,20 @@ func Load() Config {
 		}
 	}
 
+	matchMsgMaxLen := 2000
+	if raw := os.Getenv("MATCH_MESSAGE_MAX_LENGTH"); raw != "" {
+		if value, err := strconv.Atoi(raw); err == nil && value > 0 {
+			matchMsgMaxLen = value
+		}
+	}
+
+	matchDailyMsgLimit := 200
+	if raw := os.Getenv("MATCH_DAILY_MESSAGE_LIMIT"); raw != "" {
+		if value, err := strconv.Atoi(raw); err == nil && value > 0 {
+			matchDailyMsgLimit = value
+		}
+	}
+
 	return Config{
 		Port:                      port,
 		DatabaseURL:               os.Getenv("DATABASE_URL"),
@@ -74,5 +90,7 @@ func Load() Config {
 		MatchMinOverlapMinutes:    minOverlap,
 		PreMatchMessageLimit:      preMatchMsgLimit,
 		MatchRequestMessageMaxLen: matchReqMsgMaxLen,
+		MatchMessageMaxLen:        matchMsgMaxLen,
+		MatchDailyMsgLimit:        matchDailyMsgLimit,
 	}
 }

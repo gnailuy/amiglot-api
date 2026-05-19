@@ -66,5 +66,8 @@
   "errors.message_limit": "您已达到此请求的消息限制。",
   "errors.message_required": "消息内容不能为空。",
   "errors.message_too_long": "消息过长。",
-  "errors.request_not_found": "连接请求未找到。"
+  "errors.request_not_found": "连接请求未找到。",
+  "errors.match_not_found": "未找到匹配",
+  "errors.match_closed": "此对话已关闭",
+  "errors.daily_message_limit": "此对话的每日消息上限已达到"
 }

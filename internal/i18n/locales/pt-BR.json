@@ -66,5 +66,8 @@
   "errors.message_limit": "Você atingiu o limite de mensagens para esta solicitação.",
   "errors.message_required": "O corpo da mensagem é obrigatório.",
   "errors.message_too_long": "A mensagem é muito longa.",
-  "errors.request_not_found": "Solicitação de conexão não encontrada."
+  "errors.request_not_found": "Solicitação de conexão não encontrada.",
+  "errors.match_not_found": "Correspondência não encontrada",
+  "errors.match_closed": "Esta conversa foi encerrada",
+  "errors.daily_message_limit": "Limite diário de mensagens atingido para esta conversa"
 }
