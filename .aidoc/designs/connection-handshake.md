@@ -2,7 +2,7 @@
 domain: Designs
 status: Active
 entry_points:
-  - internal/handler/connection.go
+  - internal/http/connection.go
   - internal/service/connection.go
   - internal/repository/connection.go
 dependencies:

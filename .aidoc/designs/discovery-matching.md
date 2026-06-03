@@ -2,7 +2,7 @@
 domain: Designs
 status: Active
 entry_points:
-  - internal/handler/discovery.go
+  - internal/http/discovery.go
   - internal/service/discovery.go
   - internal/repository/discovery.go
 dependencies:

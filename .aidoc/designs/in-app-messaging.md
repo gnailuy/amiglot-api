@@ -1,8 +1,8 @@
 ---
 domain: Designs
-status: Draft
+status: Active
 entry_points:
-  - internal/handler/messaging.go
+  - internal/http/messaging.go
   - internal/service/messaging.go
   - internal/repository/messaging.go
 dependencies:
